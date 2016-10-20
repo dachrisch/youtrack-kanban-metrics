@@ -13,7 +13,6 @@ from xml.dom import minidom
 from xml.sax.saxutils import escape, quoteattr
 
 import httplib2
-
 import youtrack
 
 
