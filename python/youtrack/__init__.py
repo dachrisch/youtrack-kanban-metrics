@@ -4,25 +4,25 @@ YouTrack 2.0 REST API
 
 import re
 from xml.dom import Node
-from xml.dom.minidom import Document
 from xml.dom import minidom
-from xml.sax.saxutils import escape, quoteattr
-
+from xml.dom.minidom import Document
+from xml.sax.saxutils import escape
 
 EXISTING_FIELD_TYPES = {
-    'numberInProject'   :   'integer',
-    'summary'           :   'string',
-    'description'       :   'string',
-    'created'           :   'date',
-    'updated'           :   'date',
-    'updaterName'       :   'user[1]',
-    'resolved'          :   'date',
-    'reporterName'      :   'user[1]',
-    'watcherName'       :   'user[*]',
-    'voterName'         :   'user[*]'
+    'numberInProject': 'integer',
+    'summary': 'string',
+    'description': 'string',
+    'created': 'date',
+    'updated': 'date',
+    'updaterName': 'user[1]',
+    'resolved': 'date',
+    'reporterName': 'user[1]',
+    'watcherName': 'user[*]',
+    'voterName': 'user[*]'
 }
 
 EXISTING_FIELDS = ['numberInProject', 'projectShortName'] + EXISTING_FIELD_TYPES.keys()
+
 
 class YouTrackException(Exception):
     def __init__(self, url, response, content):
@@ -197,7 +197,7 @@ class Issue(YouTrackObject):
         return voters
 
     def getComments(self):
-        #TODO: do not make rest request if issue was initied with comments
+        # TODO: do not make rest request if issue was initied with comments
         if not hasattr(self, 'comments'):
             setattr(self, 'comments', self.youtrack.getComments(self.id))
         return self.comments
@@ -277,6 +277,8 @@ class ChangeField(YouTrackObject):
         YouTrackObject.__init__(self, xml, youtrack)
 
     def _update(self, xml):
+        if xml is None:
+            return
         self.name = xml.getAttribute('name')
         old_value = xml.getElementsByTagName('oldValue')
         for value in old_value:
@@ -284,6 +286,7 @@ class ChangeField(YouTrackObject):
         new_value = xml.getElementsByTagName('newValue')
         for value in new_value:
             self.new_value.append(self._text(value))
+
 
 class Link(YouTrackObject):
     def __init__(self, xml=None, youtrack=None):
@@ -293,10 +296,12 @@ class Link(YouTrackObject):
         return hash((self.typeName, self.source, self.target))
 
     def __eq__(self, other):
-        return isinstance(other, Link) and self.typeName == other.typeName and self.source == other.source and self.target == other.target
+        return isinstance(other,
+                          Link) and self.typeName == other.typeName and self.source == other.source and self.target == other.target
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
 
 class Attachment(YouTrackObject):
     def __init__(self, xml=None, youtrack=None):
@@ -316,7 +321,7 @@ class Attachment(YouTrackObject):
 class User(YouTrackObject):
     def __init__(self, xml=None, youtrack=None):
         YouTrackObject.__init__(self, xml, youtrack)
-        self.getGroups = lambda : []
+        self.getGroups = lambda: []
 
     def __hash__(self):
         return hash(self.login)
@@ -336,6 +341,7 @@ class Group(YouTrackObject):
 class Role(YouTrackObject):
     def __init__(self, xml=None, youtrack=None):
         YouTrackObject.__init__(self, xml, youtrack)
+
 
 class UserRole(YouTrackObject):
     def __init__(self, xml=None, youtrack=None):
@@ -357,16 +363,19 @@ class UserRole(YouTrackObject):
         result = '<userRole name="%s">' % self.name.encode('utf-8')
         if len(self.projects):
             result += '<projects>'
-            result += "".join('<projectRef id="%s" url="dirty_hack"/>' % project.encode('utf-8') for project in self.projects)
+            result += "".join(
+                '<projectRef id="%s" url="dirty_hack"/>' % project.encode('utf-8') for project in self.projects)
             result += '</projects>'
         else:
             result += '<projects/>'
         result += '</userRole>'
         return result
 
+
 class Permission(YouTrackObject):
     def __init__(self, xml=None, youtrack=None):
         YouTrackObject.__init__(self, xml, youtrack)
+
 
 class Project(YouTrackObject):
     def __init__(self, xml=None, youtrack=None):
@@ -419,7 +428,7 @@ class WorkItem(YouTrackObject):
                 self['worktype'] = self._text(e.getElementsByTagName('name')[0])
             else:
                 self[e.tagName] = self._text(e)
-    
+
 
 class CustomField(YouTrackObject):
     def __init__(self, xml=None, youtrack=None):
@@ -478,7 +487,7 @@ class UserBundle(YouTrackObject):
     def get_all_users(self):
         all_users = self.users
         for group in self.groups:
-            #returns objects containing only login and url info
+            # returns objects containing only login and url info
             group_users = self.youtrack.getUsers({'group': group.name.encode('utf-8')})
             for user in group_users:
                 # re-request credentials separately for each user to get more details
