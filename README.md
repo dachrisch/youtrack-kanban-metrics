@@ -8,6 +8,7 @@ Provides Kanban Metrics for YouTrack
 
 usage
 -----
+
 usage: main.py [-h] [-v] --username USERNAME --password PASSWORD
                [--cachedir CACHEDIR] [--cacheage CACHEAGE]
                [--historyage HISTORYAGE] [--historyfrom HISTORYFROM]
@@ -31,3 +32,10 @@ optional arguments:
                         where to start fetching (instead of "now")
   --chart_log           days before updating cache
   --savechart           save chart to file instead of showing it
+
+requirements
+------------
+
+    pip install -r requirements.txt
+
+
