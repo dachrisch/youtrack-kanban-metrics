@@ -9,11 +9,7 @@ Provides Kanban Metrics for YouTrack
 usage
 -----
 
-usage: main.py [-h] [-v] --username USERNAME --password PASSWORD
-               [--cachedir CACHEDIR] [--cacheage CACHEAGE]
-               [--historyage HISTORYAGE] [--historyfrom HISTORYFROM]
-               [--chart_log] [--savechart]
-               project {histogram,control,metrics,basic,percentile}
+usage: main.py [-h] [-v] --username USERNAME --password PASSWORD [--cachedir CACHEDIR] [--cacheage CACHEAGE] [--historyage HISTORYAGE] [--historyfrom HISTORYFROM] [--chart_log] [--savechart] project {histogram,control,metrics,basic,percentile}
 
 positional arguments:
   project               the project to calculate statistics for
