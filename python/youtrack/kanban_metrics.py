@@ -18,6 +18,10 @@ class YoutrackProvider(ChangesProvider):
         return self.youtrack.get_changes_for_issue(issue.issue_id)
 
 
+class ProjectNotFoundException(Exception):
+    pass
+
+
 class KanbanAwareYouTrackConnection(Connection):
     def __init__(self, url, username, password, cache=None, *args, **kwargs):
         Connection.__init__(self, url, username, password, *args, **kwargs)
@@ -33,6 +37,9 @@ class KanbanAwareYouTrackConnection(Connection):
         return state
 
     def get_cycle_time_issues(self, project, items, history_range=None):
+        projects = self.getProjects()
+        if project not in projects:
+            raise ProjectNotFoundException(projects)
         if history_range:
             all_issues = self.getIssues(project, 'state:resolved resolved date:%s .. %s' % history_range, 0, items)
             self._log.debug('found %d issues in range %s' % (len(all_issues), history_range))
