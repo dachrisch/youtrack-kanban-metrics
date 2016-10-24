@@ -106,7 +106,6 @@ def histogram(issues, chart_title, chart_file):
     # the histogram of the data
     step = math.ceil(max(cycletimes) / 10.).as_integer_ratio()[0]
     plot_bins = range(min(cycletimes), step * 11, step)
-    print plot_bins
     n, bins, patches = plt.hist(cycletimes, bins=plot_bins,
                                 facecolor='green',
                                 alpha=0.75)
@@ -124,19 +123,18 @@ def histogram(issues, chart_title, chart_file):
 
 def base(issues, now, then):
     timespan = (now - then).days
-    print 'timespan: %d days' % timespan
-    print 'number of finished issues: %d' % len(issues)
-    started_issues = filter(lambda issue: issue.cycle_time_start > then, issues)
-    print 'number of started issues: %d' % len(started_issues)
     print 'first issue : %s' % issues[0]
     print 'last issue  : %s' % issues[-1]
     cycletimes = [issue.cycle_time.days for issue in issues]
-    median_cycle_time = sorted(cycletimes)[len(cycletimes) // 2]
-    max_cycle_time = numpy.max(cycletimes)
-    min_cycle_time = numpy.min(cycletimes)
-    print 'min issue   : %s' % filter(lambda issue: issue.cycle_time.days == min_cycle_time, issues)[0]
-    print 'median issue: %s' % filter(lambda issue: issue.cycle_time.days == median_cycle_time, issues)[0]
-    print 'max issue   : %s' % filter(lambda issue: issue.cycle_time.days == max_cycle_time, issues)[0]
+    print 'min issue   : %s' % filter(lambda issue: issue.cycle_time.days == numpy.min(cycletimes), issues)[0]
+    print 'median issue: %s' % \
+          filter(lambda issue: issue.cycle_time.days == sorted(cycletimes)[len(cycletimes) // 2], issues)[0]
+    print 'max issue   : %s' % filter(lambda issue: issue.cycle_time.days == numpy.max(cycletimes), issues)[0]
+
+    print 'timespan (%s - %s): %d days' % (now, then, timespan)
+    print 'number of finished issues: %d' % len(issues)
+    started_issues = filter(lambda issue: issue.cycle_time_start > then, issues)
+    print 'number of started issues: %d' % len(started_issues)
 
     mean_cycle_time = numpy.mean(cycletimes)
     print 'mean cycle time: %d days' % mean_cycle_time
