@@ -18,14 +18,13 @@ usage
     usage: main.py [-h] [-v] --username USERNAME --password PASSWORD
                    [--cachedir CACHEDIR] [--cacheage CACHEAGE]
                    [--historyage HISTORYAGE] [--historyfrom HISTORYFROM]
-                   [--chart_log] [--savechart]
+                   [--chart_log] [--savechart] [--nocache]
                    project {histogram,control,metrics,basic,percentile}
-    
     
     positional arguments:
       project               the project to calculate statistics for
       {histogram,control,metrics,basic,percentile}
-    
+                            metric to calculate
     
     optional arguments:
       -h, --help            show this help message and exit
@@ -40,6 +39,8 @@ usage
                             where to start fetching (instead of "now")
       --chart_log           days before updating cache
       --savechart           save chart to file instead of showing it
+      --nocache             don't use the cache, fetch live data
+
 
 requirements
 ------------

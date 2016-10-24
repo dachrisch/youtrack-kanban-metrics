@@ -18,7 +18,10 @@ def to_date_fetch_query(datetime_value):
 def main(arguments):
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-    cache = pyfscache.FSCache(arguments.cachedir, days=arguments.cacheage)
+    if arguments.nocache:
+        cache = None
+    else:
+        cache = pyfscache.FSCache(arguments.cachedir, days=arguments.cacheage)
 
     yt = KanbanAwareYouTrackConnection('https://tickets.i.gini.net', arguments.username, arguments.password, cache)
     if arguments.historyfrom:
@@ -171,6 +174,9 @@ if __name__ == '__main__':
     parser.add_argument('--savechart', dest='savechart', action='store_true', default=None,
                         help='save chart to file instead of showing it')
 
-    parser.add_argument('chart', choices=('histogram', 'control', 'metrics', 'basic', 'percentile'))
+    parser.add_argument('--nocache', dest='nocache', action='store_true', default=False,
+                        help="don't use the cache, fetch live data")
+    parser.add_argument('chart', choices=('histogram', 'control', 'metrics', 'basic', 'percentile'),
+                        help='metric to calculate')
     args = parser.parse_args()
     main(args)
