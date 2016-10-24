@@ -13,9 +13,9 @@ from youtrack import IssueChange, ChangeField, Issue
 from youtrack.connection import Connection
 from youtrack.kanban_metrics import YoutrackProvider, ChangesProvider, CycleTimeAwareIssue, has_state_changes, \
     has_new_value, KanbanAwareYouTrackConnection, has_resolved_value
+import pyfscache
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
 username = os.environ['username']
 password = os.environ['password']
 
@@ -84,8 +84,11 @@ class TestCalculateCycleTime(unittest.TestCase):
 
         self.assertEqual(datetime.timedelta(1272, 3800), complete_state_datetime - open_state_datetime)
 
-    def t_est_live_cylce_time_for_issues(self):
-        yt = KanbanAwareYouTrackConnection('https://tickets.i.gini.net', username, password)
+    def test_live_cylce_time_for_issues(self):
+        from tempfile import mkdtemp
+        cachedir = mkdtemp()
+        cache = pyfscache.FSCache(cachedir, days=14)
+        yt = KanbanAwareYouTrackConnection('https://tickets.i.gini.net', username, password, cache)
         print 'connected to [%s]' % yt.baseUrl
         cycle_time_issues = yt.get_cycle_time_issues('Backend', 10)
 

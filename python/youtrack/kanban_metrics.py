@@ -19,14 +19,26 @@ class YoutrackProvider(ChangesProvider):
 
 
 class KanbanAwareYouTrackConnection(Connection):
-    def __init__(self, *args, **kwargs):
-        Connection.__init__(self, *args, **kwargs)
+    def __init__(self, url, username, password, cache=None, *args, **kwargs):
+        Connection.__init__(self, url, username, password, *args, **kwargs)
         self._log = logging.getLogger(self.__class__.__name__)
-        self._log.debug('connected to [%s]' % self.baseUrl)
+        self._log.debug('connected to [%s@%s]' % (username, self.baseUrl))
+        if cache:
+            self.get_cycle_time_issues = cache(self.get_cycle_time_issues)
 
-    def get_cycle_time_issues(self, project, items):
-        all_issues = self.getIssues(project, 'state:resolved', 0, items)
-        self._log.debug('found %d issues' % len(all_issues))
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        del state['_log']
+        del state['get_cycle_time_issues']
+        return state
+
+    def get_cycle_time_issues(self, project, items, history_range=None):
+        if history_range:
+            all_issues = self.getIssues(project, 'state:resolved resolved date:%s .. %s' % history_range, 0, items)
+            self._log.debug('found %d issues in range %s' % (len(all_issues), history_range))
+        else:
+            all_issues = self.getIssues(project, 'state:resolved', 0, items)
+            self._log.debug('found %d issues' % len(all_issues))
         cycle_time_issues = filter(lambda issue: issue.cycle_time is not None,
                                    [CycleTimeAwareIssue(one_issue, YoutrackProvider(self)) for one_issue in
                                     all_issues])
@@ -45,6 +57,11 @@ class CycleTimeAwareIssue(object):
         self.history_provider = history_provider
         self.changes = self.history_provider.retrieve_changes(self)
         self._init_transition_stages(int(issue.created))
+
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        del state['_log']
+        return state
 
     def _init_transition_stages(self, created_time):
         self.cycle_time_start = None
