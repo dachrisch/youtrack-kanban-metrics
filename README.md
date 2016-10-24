@@ -9,7 +9,7 @@ Provides Kanban Metrics for YouTrack
 usage
 -----
 
-usage: main.py [-h] [-v] --username USERNAME --password PASSWORD
+usage: main.py [-h] [-v] 
               
 
 requirements
