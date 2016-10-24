@@ -5,6 +5,7 @@ import logging
 import math
 import sys
 
+import numpy
 import pyfscache
 
 from youtrack.kanban_metrics import KanbanAwareYouTrackConnection
@@ -40,6 +41,7 @@ def control_chart(args, history, issues, now):
     x_resolved_date = [issue.cycle_time_end.toordinal() for issue in issues]
     y_cycletimes = [issue.cycle_time.days for issue in issues]
     plt.plot(x_resolved_date, y_cycletimes, 'ro')
+
     plt.margins(0.1)
     x_ticks = axis.get_xticks()
     x_ticks_labels = [datetime.date.fromordinal(int(x_tick)) for x_tick in x_ticks]
@@ -77,7 +79,6 @@ def metrics(issues):
     print 'first issue : %s' % issues[0]
     print 'last issue  : %s' % issues[-1]
     cycletimes = [issue.cycle_time.days for issue in issues]
-    import numpy
     median_cycle_time = sorted(cycletimes)[len(cycletimes) // 2]
     max_cycle_time = numpy.max(cycletimes)
     min_cycle_time = numpy.min(cycletimes)
@@ -94,11 +95,11 @@ def metrics(issues):
     mean_cycle_time = numpy.mean(cycletimes)
     print 'mean cycle time: %d days' % mean_cycle_time
     issue_to_print = [issue for issue in issues]
-    for quantile in (10,25,50,75,80,90,95,99):
+    for quantile in (10, 25, 50, 75, 80, 90, 95, 99):
         quantile_cycle_time = numpy.percentile(cycletimes, quantile)
         print '%d%% percentile: %s days' % (quantile, quantile_cycle_time)
         for issue in issue_to_print:
-            if issue.cycle_time.days <=quantile_cycle_time:
+            if issue.cycle_time.days <= quantile_cycle_time:
                 print issue
                 issue_to_print.remove(issue)
 
