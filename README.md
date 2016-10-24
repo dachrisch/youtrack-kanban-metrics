@@ -6,6 +6,12 @@ Provides Kanban Metrics for YouTrack
 - percentile chart
 - control chart
 
+example usage
+-------------
+displays the control chart for the last 90 days of the BACKEND project
+
+    python main.py --username $username --password $password BACKEND control
+
 usage
 -----
 
