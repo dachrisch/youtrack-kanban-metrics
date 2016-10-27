@@ -38,8 +38,8 @@ class KanbanAwareYouTrackConnection(Connection):
 
     def get_cycle_time_issues(self, project, items, history_range=None):
         projects = self.getProjects()
-        if project not in projects:
-            raise ProjectNotFoundException(projects)
+        if project not in projects and project not in projects.values():
+            raise ProjectNotFoundException('[%s] not in [%s]' % (project, projects))
         if history_range:
             all_issues = self.getIssues(project, 'state:resolved resolved date:%s .. %s' % history_range, 0, items)
             self._log.debug('found %d issues in range %s' % (len(all_issues), history_range))
@@ -53,24 +53,25 @@ class KanbanAwareYouTrackConnection(Connection):
         return cycle_time_issues
 
 
-def millis_to_datetime(created_time):
-    return datetime.datetime.fromtimestamp(created_time / 1000.0)
+def millis_to_datetime(time_str):
+    return datetime.datetime.fromtimestamp(time_str / 1000.0)
 
 
 class CycleTimeAwareIssue(object):
     def __init__(self, issue, history_provider=None):
         self._log = logging.getLogger(self.__class__.__name__)
         self.issue_id = issue.id
+        self.created_time = millis_to_datetime(int(issue.created))
         self.history_provider = history_provider
         self.changes = self.history_provider.retrieve_changes(self)
-        self._init_transition_stages(int(issue.created))
+        self._init_transition_stages()
 
     def __getstate__(self):
         state = dict(self.__dict__)
         del state['_log']
         return state
 
-    def _init_transition_stages(self, created_time):
+    def _init_transition_stages(self):
         self.cycle_time_start = None
         self.cycle_time_end = None
         self.cycle_time = None
@@ -86,9 +87,11 @@ class CycleTimeAwareIssue(object):
                 self.cycle_time_start = millis_to_datetime(
                     min([open_state_change.updated for open_state_change in open_state_changes]))
             else:
+                first_change_time = millis_to_datetime(min([state_change.updated for state_change in state_changes]))
                 self._log.warn("[%s] couldn't find any start time in changes. Using first change time %s" % (
-                    self.issue_id, created_time))
-                self.cycle_time_start = millis_to_datetime(created_time)
+                    self.issue_id, first_change_time))
+                self._log.debug('available changes were: [%s]' % state_changes)
+                self.cycle_time_start = first_change_time
 
             complete_state_changes = filter(has_resolved_value, state_changes) or \
                                      filter(partial(has_new_value, ('Obsolete', 'Prod | Final', 'Archived')),

@@ -4,16 +4,16 @@
 import datetime
 import logging
 import os
+import sys
 import unittest
 from functools import partial
 
-import sys
+import pyfscache
 
 from youtrack import IssueChange, ChangeField, Issue
 from youtrack.connection import Connection
 from youtrack.kanban_metrics import YoutrackProvider, ChangesProvider, CycleTimeAwareIssue, has_state_changes, \
     has_new_value, KanbanAwareYouTrackConnection, has_resolved_value
-import pyfscache
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 username = os.environ['username']
@@ -53,9 +53,10 @@ class TestCalculateCycleTime(unittest.TestCase):
     def test_get_cylce_time_for_issue(self):
         issue = Issue()
         issue.created = '123'
-        issue.id='BACKEND-671'
+        issue.id = 'BACKEND-671'
         issue = CycleTimeAwareIssue(issue, TestProvider())
         self.assertEqual(1272, issue.cycle_time.days)
+        self.assertEqual(datetime.datetime(1970, 1, 1, 1, 0, 0, 123000), issue.created_time)
 
     def test_cycle_time_from_issue_changes(self):
         changes = init_changes()
@@ -84,7 +85,7 @@ class TestCalculateCycleTime(unittest.TestCase):
 
         self.assertEqual(datetime.timedelta(1272, 3800), complete_state_datetime - open_state_datetime)
 
-    def test_live_cylce_time_for_issues(self):
+    def test_live_cylce_time_for_issues_with_cache(self):
         from tempfile import mkdtemp
         cachedir = mkdtemp()
         cache = pyfscache.FSCache(cachedir, days=14)
