@@ -1,3 +1,4 @@
+pyfscache
 statistics
 httplib2
 matplotlib
