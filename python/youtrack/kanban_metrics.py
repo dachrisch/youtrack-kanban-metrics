@@ -1,6 +1,8 @@
 import datetime
 import logging
+from collections import namedtuple
 from functools import partial
+from operator import attrgetter
 
 from youtrack.connection import Connection
 
@@ -75,6 +77,7 @@ class CycleTimeAwareIssue(object):
         self.cycle_time_start = None
         self.cycle_time_end = None
         self.cycle_time = None
+        self.cycle_time_start_source = None
         state_changes = filter(has_state_changes, self.changes)
 
         if state_changes:
@@ -84,61 +87,67 @@ class CycleTimeAwareIssue(object):
                 state_changes) or \
                                  filter(partial(has_old_value, 'In Progress'), state_changes)
             if len(open_state_changes) > 0:
-                self.cycle_time_start = millis_to_datetime(
-                    min([open_state_change.updated for open_state_change in open_state_changes]))
+                min_state_change = min(open_state_changes, key=attrgetter('updated'))
             else:
-                first_change_time = millis_to_datetime(min([state_change.updated for state_change in state_changes]))
+                min_state_change = min(state_changes, key=attrgetter('updated'))
                 self._log.warn("[%s] couldn't find any start time in changes. Using first change time %s" % (
-                    self.issue_id, first_change_time))
+                    self.issue_id, min_state_change.updated))
                 self._log.debug('available changes were: [%s]' % state_changes)
-                self.cycle_time_start = first_change_time
+
+            self.cycle_time_start = millis_to_datetime(min_state_change.updated)
+            self.cycle_time_start_source = filter(is_state_field, min_state_change.fields)[0]
 
             complete_state_changes = filter(has_resolved_value, state_changes) or \
                                      filter(partial(has_new_value, ('Obsolete', 'Prod | Final', 'Archived')),
                                             state_changes)
             if len(complete_state_changes) > 0:
-                self.cycle_time_end = millis_to_datetime(
-                    max([complete_state_change.updated for complete_state_change in complete_state_changes]))
+                max_state_change = max(complete_state_changes, key=attrgetter('updated'))
             else:
-                self._log.error("[%s] couldn't find any end time in changes [%s]" % (self.issue_id, state_changes))
+                max_state_change = max(state_changes, key=attrgetter('updated'))
+                self._log.warn("[%s] couldn't find any end time in changes. Using last change time %s" % (
+                    self.issue_id, max_state_change.updated))
+                self._log.debug('available changes were: [%s]' % state_changes)
+
+            self.cycle_time_end = millis_to_datetime(max_state_change.updated)
+            self.cycle_time_end_source = filter(is_state_field, max_state_change.fields)[0]
 
         if self.cycle_time_start and self.cycle_time_end:
             self.cycle_time = self.cycle_time_end - self.cycle_time_start
-        self._log.debug(str(self))
+        self._log.info('retrieved %s' % self)
 
     def __str__(self):
-        return '[%(issue_id)s], started: %(cycle_time_start)s, ' \
-               'finished: %(cycle_time_end)s, cycle time: %(cycle_time)s' % self.__dict__
+        return '[%(issue_id)s], (%(cycle_time_start_source)s): %(cycle_time_start)s, ' \
+               '(%(cycle_time_end_source)s): %(cycle_time_end)s, cycle time: %(cycle_time)s' % self.__dict__
 
 
-def state_field(field):
+def is_state_field(field):
     return field.name == 'State'
 
 
 def has_state_changes(change):
-    return len(filter(state_field, change.fields)) > 0
+    return len(filter(is_state_field, change.fields)) > 0
 
 
 def has_old_value(value, change):
-    for field in filter(state_field, change.fields):
+    for field in filter(is_state_field, change.fields):
         if field.old_value[0] in value:
             return True
     return False
 
 
 def has_new_value(value, change):
-    for field in filter(state_field, change.fields):
+    for field in filter(is_state_field, change.fields):
         if field.new_value[0] in value:
             return True
     return False
 
 
-def resolved_field(field):
+def is_resolved_field(field):
     return field.name == u'resolved'
 
 
 def has_resolved_value(change):
-    for field in filter(resolved_field, change.fields):
+    for field in filter(is_resolved_field, change.fields):
         if field:
             return True
     return False

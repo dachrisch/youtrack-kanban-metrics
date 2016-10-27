@@ -49,6 +49,14 @@ class TestProvider(ChangesProvider):
         return init_changes()
 
 
+def state_change_field(new_value, old_value):
+    field = ChangeField()
+    field.new_value = (new_value,)
+    field.old_value = (old_value,)
+    field.name = 'State'
+    return field
+
+
 class TestCalculateCycleTime(unittest.TestCase):
     def test_get_cylce_time_for_issue(self):
         issue = Issue()
@@ -57,6 +65,15 @@ class TestCalculateCycleTime(unittest.TestCase):
         issue = CycleTimeAwareIssue(issue, TestProvider())
         self.assertEqual(1272, issue.cycle_time.days)
         self.assertEqual(datetime.datetime(1970, 1, 1, 1, 0, 0, 123000), issue.created_time)
+
+    def test_cycle_time_source(self):
+        issue = Issue()
+        issue.created = '123'
+        issue.id = 'BACKEND-671'
+        issue = CycleTimeAwareIssue(issue, TestProvider())
+
+        self.assertDictEqual(state_change_field('In Progress', 'Open').__dict__, issue.cycle_time_start_source.__dict__)
+        self.assertEqual(state_change_field('Complete', 'In Progress').__dict__, issue.cycle_time_end_source.__dict__)
 
     def test_cycle_time_from_issue_changes(self):
         changes = init_changes()

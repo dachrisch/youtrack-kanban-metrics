@@ -16,7 +16,12 @@ def to_date_fetch_query(datetime_value):
 
 
 def main(arguments):
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    if arguments.verbose > 1:
+        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    elif arguments.verbose == 1:
+        logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+    else:
+        logging.basicConfig(stream=sys.stdout, level=logging.WARN)
 
     if arguments.nocache:
         cache = None
@@ -178,5 +183,6 @@ if __name__ == '__main__':
                         help="don't use the cache, fetch live data")
     parser.add_argument('chart', choices=('histogram', 'control', 'metrics', 'basic', 'percentile'),
                         help='metric to calculate')
+
     args = parser.parse_args()
     main(args)
