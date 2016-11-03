@@ -1,10 +1,9 @@
 import datetime
 import logging
-from collections import namedtuple
 from functools import partial
 from operator import attrgetter
 
-from youtrack.connection import Connection
+from connection import Connection
 
 
 class ChangesProvider(object):
@@ -24,6 +23,7 @@ class ProjectNotFoundException(Exception):
     pass
 
 
+# noinspection PyAbstractClass
 class KanbanAwareYouTrackConnection(Connection):
     def __init__(self, url, username, password, cache=None, *args, **kwargs):
         Connection.__init__(self, url, username, password, *args, **kwargs)
@@ -78,6 +78,9 @@ class CycleTimeAwareIssue(object):
         self.cycle_time_end = None
         self.cycle_time = None
         self.cycle_time_start_source = None
+        self.cycle_time_end_source = None
+        self.cycle_time_start_source_transition = None
+        self.cycle_time_end_source_transition = None
         state_changes = filter(has_state_changes, self.changes)
 
         if state_changes:
@@ -90,12 +93,13 @@ class CycleTimeAwareIssue(object):
                 min_state_change = min(open_state_changes, key=attrgetter('updated'))
             else:
                 min_state_change = min(state_changes, key=attrgetter('updated'))
-                self._log.warn("[%s] couldn't find any start time in changes. Using first change time %s" % (
+                self._log.debug("[%s] couldn't find any start time in changes. Using first change time %s" % (
                     self.issue_id, min_state_change.updated))
                 self._log.debug('available changes were: [%s]' % state_changes)
 
             self.cycle_time_start = millis_to_datetime(min_state_change.updated)
             self.cycle_time_start_source = filter(is_state_field, min_state_change.fields)[0]
+            self.cycle_time_start_source_transition = state_transition_string(self.cycle_time_start_source)
 
             complete_state_changes = filter(has_resolved_value, state_changes) or \
                                      filter(partial(has_new_value, ('Obsolete', 'Prod | Final', 'Archived')),
@@ -104,20 +108,25 @@ class CycleTimeAwareIssue(object):
                 max_state_change = max(complete_state_changes, key=attrgetter('updated'))
             else:
                 max_state_change = max(state_changes, key=attrgetter('updated'))
-                self._log.warn("[%s] couldn't find any end time in changes. Using last change time %s" % (
+                self._log.debug("[%s] couldn't find any end time in changes. Using last change time %s" % (
                     self.issue_id, max_state_change.updated))
                 self._log.debug('available changes were: [%s]' % state_changes)
 
             self.cycle_time_end = millis_to_datetime(max_state_change.updated)
             self.cycle_time_end_source = filter(is_state_field, max_state_change.fields)[0]
+            self.cycle_time_end_source_transition = state_transition_string(self.cycle_time_end_source)
 
         if self.cycle_time_start and self.cycle_time_end:
             self.cycle_time = self.cycle_time_end - self.cycle_time_start
         self._log.info('retrieved %s' % self)
 
     def __str__(self):
-        return '[%(issue_id)s], (%(cycle_time_start_source)s): %(cycle_time_start)s, ' \
-               '(%(cycle_time_end_source)s): %(cycle_time_end)s, cycle time: %(cycle_time)s' % self.__dict__
+        return '[%(issue_id)s], (%(cycle_time_start_source_transition)s): %(cycle_time_start)s, ' \
+               '(%(cycle_time_end_source_transition)s): %(cycle_time_end)s, cycle time: %(cycle_time)s' % self.__dict__
+
+
+def state_transition_string(change_field):
+    return '%s->%s' % (change_field.old_value[0], change_field.new_value[0])
 
 
 def is_state_field(field):

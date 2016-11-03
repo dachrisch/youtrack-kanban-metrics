@@ -4,6 +4,7 @@ import datetime
 import logging
 import math
 import sys
+from operator import attrgetter
 
 import numpy
 import pyfscache
@@ -23,28 +24,30 @@ def main(arguments):
     else:
         logging.basicConfig(stream=sys.stdout, level=logging.WARN)
 
-    if arguments.nocache:
+    if arguments.no_cache:
         cache = None
     else:
-        cache = pyfscache.FSCache(arguments.cachedir, days=arguments.cacheage)
+        cache = pyfscache.FSCache(arguments.cache_dir, days=arguments.cache_age)
 
     yt = KanbanAwareYouTrackConnection('https://tickets.i.gini.net', arguments.username, arguments.password, cache)
-    if arguments.historyfrom:
-        now = datetime.datetime.strptime(arguments.historyfrom, '%Y-%m-%d')
+    if arguments.history_from:
+        now = datetime.datetime.strptime(arguments.history_from, '%Y-%m-%d')
     else:
         now = datetime.datetime.now()
-    then = now - datetime.timedelta(days=arguments.historyage)
+    then = now - datetime.timedelta(days=arguments.history_age)
 
-    issues = yt.get_cycle_time_issues(arguments.project, 1000,
-                                      history_range=(to_date_fetch_query(now), to_date_fetch_query(then)))
+    issues = []
+    for project in arguments.projects:
+        issues.extend(yt.get_cycle_time_issues(project, 1000,
+                                               history_range=(to_date_fetch_query(now), to_date_fetch_query(then))))
 
     base(issues, now, then)
 
-    chart_title = '[%s] %s' % (arguments.project, (to_date_fetch_query(then), to_date_fetch_query(now)))
+    chart_title = '%s %s' % (arguments.projects, (to_date_fetch_query(then), to_date_fetch_query(now)))
 
     chart_filename = None
-    if arguments.savechart:
-        chart_filename = '%s_%s-%s.png' % (arguments.project, to_date_fetch_query(then), to_date_fetch_query(now))
+    if arguments.save_chart:
+        chart_filename = '%s_%s-%s.png' % (arguments.projects, to_date_fetch_query(then), to_date_fetch_query(now))
     if arguments.chart == 'histogram':
         histogram(issues, chart_title, chart_filename)
     elif arguments.chart == 'control':
@@ -66,7 +69,6 @@ def percentile(issues, chart_title, chart_file):
     x_axis = (10, 25, 50, 75, 80, 90, 95, 99)
     y_axis = [numpy.percentile(cycletimes, quantile) for quantile in x_axis]
 
-    axis = plt.subplot()
     plt.plot(x_axis, y_axis)
 
     plt.xlabel('Percentile')
@@ -108,20 +110,25 @@ def control_chart(issues, chart_title, chart_file):
 
 def histogram(issues, chart_title, chart_file):
     import matplotlib.pyplot as plt
-    if args.chart_log:
-        plt.yscale('log')
     cycletimes = [issue.cycle_time.days for issue in issues]
-    # the histogram of the data
-    step = math.ceil(max(cycletimes) / 10.).as_integer_ratio()[0]
-    plot_bins = range(min(cycletimes), step * 11, step)
+
+    if args.chart_log:
+        plt.xscale('log')
+        plt.grid(True, which='minor')
+        plot_bins = numpy.logspace(0, math.ceil(numpy.log10(max(cycletimes))), num=10)
+        plot_bins[0] = 0
+    else:
+        plot_bins = numpy.linspace(0, max(cycletimes), num=10)
+        plt.xticks(plot_bins)
+
     n, bins, patches = plt.hist(cycletimes, bins=plot_bins,
                                 facecolor='green',
                                 alpha=0.75)
-    plt.xticks(plot_bins)
+    assert sum(n) == len(cycletimes)
     plt.xlabel('Cycle Time [days]')
     plt.ylabel('Frequency')
     plt.title('Cycle Time Histogram for %s' % chart_title)
-    plt.axis([plot_bins[0], plot_bins[-1], 0, max(n) + 1])
+    plt.ylim([0, max(n) + 1])
     plt.grid(True)
     if chart_file:
         plt.savefig('histogram_%s' % chart_file)
@@ -131,13 +138,12 @@ def histogram(issues, chart_title, chart_file):
 
 def base(issues, now, then):
     timespan = (now - then).days
-    print 'first issue : %s' % issues[0]
-    print 'last issue  : %s' % issues[-1]
+    print 'oldest issue  : %s' % min(issues, key=attrgetter('cycle_time_end'))
+    print 'youngest issue: %s' % max(issues, key=attrgetter('cycle_time_end'))
     cycletimes = [issue.cycle_time.days for issue in issues]
-    print 'min issue   : %s' % filter(lambda issue: issue.cycle_time.days == numpy.min(cycletimes), issues)[0]
-    print 'median issue: %s' % \
-          filter(lambda issue: issue.cycle_time.days == sorted(cycletimes)[len(cycletimes) // 2], issues)[0]
-    print 'max issue   : %s' % filter(lambda issue: issue.cycle_time.days == numpy.max(cycletimes), issues)[0]
+    print 'min issue     : %s' % min(issues, key=attrgetter('cycle_time.days'))
+    print 'median issue  : %s' % sorted(issues, key=attrgetter('cycle_time.days'))[len(issues) // 2]
+    print 'max issue     : %s' % max(issues, key=attrgetter('cycle_time.days'))
 
     print 'timespan (%s - %s): %d days' % (now, then, timespan)
     print 'number of finished issues: %d' % len(issues)
@@ -164,22 +170,22 @@ def metrics(issues):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('project', help='the project to calculate statistics for')
+    parser.add_argument('projects', nargs='+', help='the project to calculate statistics for')
     parser.add_argument('-v', '--verbose', dest='verbose', help='print status messages to stdout more verbose',
                         action='count')
     parser.add_argument('--username', dest='username', required=True, help='username for login')
     parser.add_argument('--password', dest='password', required=True, help='password for login')
-    parser.add_argument('--cachedir', dest='cachedir', default='/tmp/', help='directory to cache results')
-    parser.add_argument('--cacheage', dest='cacheage', type=int, default=14, help='days before updating cache')
-    parser.add_argument('--historyage', dest='historyage', default=90, type=int,
+    parser.add_argument('--cache_dir', dest='cache_dir', default='/tmp/', help='directory to cache results')
+    parser.add_argument('--cache_age', dest='cache_age', type=int, default=14, help='days before updating cache')
+    parser.add_argument('-a', '--history_age', dest='history_age', default=90, type=int,
                         help='how many days to fetch (from now)')
-    parser.add_argument('--historyfrom', dest='historyfrom', help='where to start fetching (instead of "now")')
-    parser.add_argument('--chart_log', dest='chart_log', action='store_true', default=False,
+    parser.add_argument('--history_from', dest='history_from', help='where to start fetching (instead of "now")')
+    parser.add_argument('-l', '--chart_log', dest='chart_log', action='store_true', default=False,
                         help='days before updating cache')
-    parser.add_argument('--savechart', dest='savechart', action='store_true', default=None,
+    parser.add_argument('--save_chart', dest='save_chart', action='store_true', default=None,
                         help='save chart to file instead of showing it')
 
-    parser.add_argument('--nocache', dest='nocache', action='store_true', default=False,
+    parser.add_argument('--no_cache', dest='no_cache', action='store_true', default=False,
                         help="don't use the cache, fetch live data")
     parser.add_argument('chart', choices=('histogram', 'control', 'metrics', 'basic', 'percentile'),
                         help='metric to calculate')

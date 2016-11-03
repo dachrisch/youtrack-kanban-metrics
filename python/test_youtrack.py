@@ -8,6 +8,7 @@ import sys
 import unittest
 from functools import partial
 
+import numpy
 import pyfscache
 
 from youtrack import IssueChange, ChangeField, Issue
@@ -75,6 +76,13 @@ class TestCalculateCycleTime(unittest.TestCase):
         self.assertDictEqual(state_change_field('In Progress', 'Open').__dict__, issue.cycle_time_start_source.__dict__)
         self.assertEqual(state_change_field('Complete', 'In Progress').__dict__, issue.cycle_time_end_source.__dict__)
 
+    def test_logspace(self):
+        linear_space = numpy.linspace(1, 100, 4)
+        self.assertEqual({1, 34, 67, 100}, set(linear_space))
+
+        log_space = numpy.logspace(0, 2, 4)
+        self.assertEqual({1, 4.6415888336127784, 21.544346900318832, 100}, set(log_space))
+
     def test_cycle_time_from_issue_changes(self):
         changes = init_changes()
 
@@ -102,7 +110,7 @@ class TestCalculateCycleTime(unittest.TestCase):
 
         self.assertEqual(datetime.timedelta(1272, 3800), complete_state_datetime - open_state_datetime)
 
-    def test_live_cylce_time_for_issues_with_cache(self):
+    def te_st_live_cylce_time_for_issues_with_cache(self):
         from tempfile import mkdtemp
         cachedir = mkdtemp()
         cache = pyfscache.FSCache(cachedir, days=14)
@@ -111,17 +119,18 @@ class TestCalculateCycleTime(unittest.TestCase):
         cycle_time_issues = yt.get_cycle_time_issues('Backend', 10)
 
         print 'found %d issues with cycle times' % len(cycle_time_issues)
-        print map(str, cycle_time_issues)
+        [self.assertIsNotNone(cycle_time_issue.cycle_time) for cycle_time_issue in cycle_time_issues]
 
     def te_st_live_get_cycle_time(self):
         yt = Connection('https://tickets.i.gini.net', username, password)
         print 'connected to [%s]' % yt.baseUrl
         issue = Issue()
         issue.id = 'BACKEND-671'
+        issue.created = '123'
         issue = CycleTimeAwareIssue(issue, YoutrackProvider(yt))
         self.assertEqual(7, issue.cycle_time.days)
 
-    def test_live(self):
+    def te_st_live(self):
         yt = Connection('https://tickets.i.gini.net', username, password)
         print 'connected to [%s]' % yt.baseUrl
         all_backend_issues = yt.getIssues('Backend', 'state:complete', 0, 1)
