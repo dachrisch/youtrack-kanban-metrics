@@ -57,6 +57,7 @@ class KanbanAwareYouTrackConnection(Connection):
 def millis_to_datetime(time_str):
     return datetime.datetime.fromtimestamp(time_str / 1000.0)
 
+
 class data:
     @staticmethod
     def repr(obj):
@@ -104,6 +105,7 @@ class CycleTimeAwareIssue(object):
         self._calculate_cycle_time(
             ('In Progress', 'Review', 'Code Review', 'Analysis', 'Development',
              'Verification', 'Testing | Verification', 'Ready for Code Review'))
+        self._log.info(str(self))
 
     def __getstate__(self):
         state = dict(self.__dict__)
@@ -130,6 +132,11 @@ class CycleTimeAwareIssue(object):
                                filter(lambda s: s.from_state in cycle_time_states, self.state_changes)],
                               datetime.timedelta())
         forward_sorted_changes = sorted(self.state_changes, key=attrgetter('updated'))
+        if not forward_sorted_changes:
+            self.cycle_time_start = self.cycle_time_end = self.created_time
+            self.cycle_time_start_source_transition =  self.cycle_time_end_source_transition = None
+            return
+
         self.cycle_time_start = forward_sorted_changes[0].updated
         self.cycle_time_start_source_transition = forward_sorted_changes[0].transition
         for state_change in forward_sorted_changes:

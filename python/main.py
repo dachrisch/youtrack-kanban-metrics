@@ -4,6 +4,7 @@ import datetime
 import logging
 import math
 import sys
+from collections import Counter
 from operator import attrgetter
 
 import numpy
@@ -58,6 +59,37 @@ def main(arguments):
         pass
     elif arguments.chart == 'percentile':
         percentile(issues, chart_title, chart_filename)
+    elif arguments.chart == 'states':
+        states(issues, chart_title, chart_filename)
+
+
+def states(issues, chart_title, chart_file):
+    class TimedeltaCounter(Counter):
+        def __missing__(self, key):
+            return datetime.timedelta(0)
+
+    counter = TimedeltaCounter()
+    for issue in issues:
+        for state_change in issue.state_changes:
+            counter[state_change.from_state] = counter[state_change.from_state] + state_change.duration
+    for item in sorted(counter.iteritems(), key=lambda x: x[1]):
+        print 'days in [%s] state: %s' % (item[0], item[1].days)
+
+    import matplotlib.pyplot as plt
+    bar_distance = 2
+    index = numpy.arange(len(counter.keys()))
+    plt.bar(index * bar_distance + 0.5, [cycle_time.days for cycle_time in counter.values()], 1)
+    plt.xticks(index * bar_distance + 1, counter.keys(), rotation=-15)
+    plt.gca().yaxis.grid(True)
+
+    plt.xlabel('Workflow State')
+    plt.ylabel('Cumulated Cycle Times [days]')
+    plt.title('Workflow Step chart for  %s' % chart_title)
+
+    if chart_file:
+        plt.savefig('states_%s' % chart_file)
+    else:
+        plt.show()
 
 
 def percentile(issues, chart_title, chart_file):
@@ -187,7 +219,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--no_cache', dest='no_cache', action='store_true', default=False,
                         help="don't use the cache, fetch live data")
-    parser.add_argument('chart', choices=('histogram', 'control', 'metrics', 'basic', 'percentile'),
+    parser.add_argument('chart', choices=('histogram', 'control', 'metrics', 'basic', 'percentile', 'states'),
                         help='metric to calculate')
 
     args = parser.parse_args()
