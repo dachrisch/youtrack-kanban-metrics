@@ -1,6 +1,5 @@
 import datetime
 import logging
-from functools import partial
 from operator import attrgetter
 
 from connection import Connection
@@ -58,6 +57,40 @@ class KanbanAwareYouTrackConnection(Connection):
 def millis_to_datetime(time_str):
     return datetime.datetime.fromtimestamp(time_str / 1000.0)
 
+class data:
+    @staticmethod
+    def repr(obj):
+        items = []
+        for prop, value in obj.__dict__.items():
+            try:
+                item = "%s = %r" % (prop, value)
+                assert len(item) < 20
+            except:
+                item = "%s: <%s>" % (prop, value.__class__.__name__)
+            items.append(item)
+
+        return "%s(%s)" % (obj.__class__.__name__, ', '.join(items))
+
+    def __init__(self, cls):
+        cls.__repr__ = data.repr
+        self.cls = cls
+
+    def __call__(self, *args, **kwargs):
+        return self.cls(*args, **kwargs)
+
+
+@data
+class StateChange(object):
+    def __init__(self, from_state, to_state, updated, duration):
+        self.updated = updated
+        self.duration = duration
+        self.from_state = from_state
+        self.to_state = to_state
+        self.transition = '%s->%s' % (from_state, to_state)
+
+    def __str__(self):
+        return 'StateChange[%(transition)s](updated: %(updated)s, duration: %(duration)s)' % self.__dict__
+
 
 class CycleTimeAwareIssue(object):
     def __init__(self, issue, history_provider=None):
@@ -66,67 +99,61 @@ class CycleTimeAwareIssue(object):
         self.created_time = millis_to_datetime(int(issue.created))
         self.history_provider = history_provider
         self.changes = self.history_provider.retrieve_changes(self)
-        self._init_transition_stages()
+        # self._init_transition_stages()
+        self._init_time_in_state()
+        self._calculate_cycle_time(
+            ('In Progress', 'Review', 'Code Review', 'Analysis', 'Development',
+             'Verification', 'Testing | Verification', 'Ready for Code Review'))
 
     def __getstate__(self):
         state = dict(self.__dict__)
         del state['_log']
         return state
 
-    def _init_transition_stages(self):
-        self.cycle_time_start = None
-        self.cycle_time_end = None
-        self.cycle_time = None
-        self.cycle_time_start_source = None
-        self.cycle_time_end_source = None
-        self.cycle_time_start_source_transition = None
-        self.cycle_time_end_source_transition = None
-        state_changes = filter(has_state_changes, self.changes)
-
-        if state_changes:
-            open_state_changes = filter(
-                partial(has_new_value,
-                        ('In Progress', 'Review', 'Analysis', 'Development', 'Verification', 'Testing | Verification')),
-                state_changes) or \
-                                 filter(partial(has_old_value, 'In Progress'), state_changes)
-            if len(open_state_changes) > 0:
-                min_state_change = min(open_state_changes, key=attrgetter('updated'))
-            else:
-                min_state_change = min(state_changes, key=attrgetter('updated'))
-                self._log.debug("[%s] couldn't find any start time in changes. Using first change time %s" % (
-                    self.issue_id, min_state_change.updated))
-                self._log.debug('available changes were: [%s]' % state_changes)
-
-            self.cycle_time_start = millis_to_datetime(min_state_change.updated)
-            self.cycle_time_start_source = filter(is_state_field, min_state_change.fields)[0]
-            self.cycle_time_start_source_transition = state_transition_string(self.cycle_time_start_source)
-
-            complete_state_changes = filter(has_resolved_value, state_changes) or \
-                                     filter(partial(has_new_value, ('Obsolete', 'Prod | Final', 'Archived')),
-                                            state_changes)
-            if len(complete_state_changes) > 0:
-                max_state_change = max(complete_state_changes, key=attrgetter('updated'))
-            else:
-                max_state_change = max(state_changes, key=attrgetter('updated'))
-                self._log.debug("[%s] couldn't find any end time in changes. Using last change time %s" % (
-                    self.issue_id, max_state_change.updated))
-                self._log.debug('available changes were: [%s]' % state_changes)
-
-            self.cycle_time_end = millis_to_datetime(max_state_change.updated)
-            self.cycle_time_end_source = filter(is_state_field, max_state_change.fields)[0]
-            self.cycle_time_end_source_transition = state_transition_string(self.cycle_time_end_source)
-
-        if self.cycle_time_start and self.cycle_time_end:
-            self.cycle_time = self.cycle_time_end - self.cycle_time_start
-        self._log.info('retrieved %s' % self)
-
     def __str__(self):
-        return '[%(issue_id)s], (%(cycle_time_start_source_transition)s): %(cycle_time_start)s, ' \
+        return '[%(issue_id)s], (created): %(created_time)s, ' \
+               '(%(cycle_time_start_source_transition)s): %(cycle_time_start)s, ' \
                '(%(cycle_time_end_source_transition)s): %(cycle_time_end)s, cycle time: %(cycle_time)s' % self.__dict__
 
+    def _init_time_in_state(self):
+        self.state_changes = []
+        last_updated = self.created_time
+        for state_change in filter(has_state_changes, self.changes):
+            state_change_field = filter(is_state_field, state_change.fields)[0]
+            state_updated = millis_to_datetime(state_change.updated)
+            self.state_changes.append(StateChange(state_change_field.old_value[0], state_change_field.new_value[0],
+                                                  state_updated, state_updated - last_updated))
+            last_updated = state_updated
 
-def state_transition_string(change_field):
-    return '%s->%s' % (change_field.old_value[0], change_field.new_value[0])
+    def _calculate_cycle_time(self, cycle_time_states):
+        self.cycle_time = sum([state_change.duration for state_change in
+                               filter(lambda s: s.from_state in cycle_time_states, self.state_changes)],
+                              datetime.timedelta())
+        forward_sorted_changes = sorted(self.state_changes, key=attrgetter('updated'))
+        self.cycle_time_start = forward_sorted_changes[0].updated
+        self.cycle_time_start_source_transition = forward_sorted_changes[0].transition
+        for state_change in forward_sorted_changes:
+            if state_change.to_state in cycle_time_states:
+                self.cycle_time_start = state_change.updated
+                self.cycle_time_start_source_transition = state_change.transition
+                break
+
+        backward_sorted_changes = sorted(self.state_changes, key=attrgetter('updated'), reverse=True)
+        self.cycle_time_end = backward_sorted_changes[0].updated
+        self.cycle_time_end_source_transition = backward_sorted_changes[0].transition
+        for state_change in backward_sorted_changes:
+            if state_change.from_state in cycle_time_states:
+                self.cycle_time_end = state_change.updated
+                self.cycle_time_end_source_transition = state_change.transition
+                break
+
+    def time_in_state(self, state):
+        return sum(
+            [state_change.duration for state_change in filter(lambda s: s.from_state == state, self.state_changes)],
+            datetime.timedelta())
+
+    def first_date_in_state(self, state):
+        return sorted(filter(lambda s: s.to_state == state, self.state_changes), key=attrgetter('updated'))[0].updated
 
 
 def is_state_field(field):

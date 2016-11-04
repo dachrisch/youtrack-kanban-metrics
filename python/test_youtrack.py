@@ -14,11 +14,9 @@ import pyfscache
 from youtrack import IssueChange, ChangeField, Issue
 from youtrack.connection import Connection
 from youtrack.kanban_metrics import YoutrackProvider, ChangesProvider, CycleTimeAwareIssue, has_state_changes, \
-    has_new_value, KanbanAwareYouTrackConnection, has_resolved_value
+    has_new_value, KanbanAwareYouTrackConnection, has_resolved_value, millis_to_datetime
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-username = os.environ['username']
-password = os.environ['password']
 
 
 def init_changes():
@@ -64,17 +62,8 @@ class TestCalculateCycleTime(unittest.TestCase):
         issue.created = '123'
         issue.id = 'BACKEND-671'
         issue = CycleTimeAwareIssue(issue, TestProvider())
-        self.assertEqual(1272, issue.cycle_time.days)
+        self.assertEqual(millis_to_datetime(1472861471944) - millis_to_datetime(1362960471944), issue.cycle_time)
         self.assertEqual(datetime.datetime(1970, 1, 1, 1, 0, 0, 123000), issue.created_time)
-
-    def test_cycle_time_source(self):
-        issue = Issue()
-        issue.created = '123'
-        issue.id = 'BACKEND-671'
-        issue = CycleTimeAwareIssue(issue, TestProvider())
-
-        self.assertDictEqual(state_change_field('In Progress', 'Open').__dict__, issue.cycle_time_start_source.__dict__)
-        self.assertEqual(state_change_field('Complete', 'In Progress').__dict__, issue.cycle_time_end_source.__dict__)
 
     def test_logspace(self):
         linear_space = numpy.linspace(1, 100, 4)
@@ -82,6 +71,27 @@ class TestCalculateCycleTime(unittest.TestCase):
 
         log_space = numpy.logspace(0, 2, 4)
         self.assertEqual({1, 4.6415888336127784, 21.544346900318832, 100}, set(log_space))
+
+    def test_issue_in_state_time(self):
+        issue = Issue()
+        issue.created = '123'
+        issue.id = 'BACKEND-671'
+        issue = CycleTimeAwareIssue(issue, TestProvider())
+        self.assertEqual(issue.time_in_state('Open'), millis_to_datetime(1362960471944) - issue.created_time)
+        self.assertEqual(issue.time_in_state('In Progress'),
+                         millis_to_datetime(1472861471944) - millis_to_datetime(1362960471944))
+        self.assertEqual(issue.time_in_state('Complete'), datetime.timedelta(0))
+        self.assertEqual(issue.cycle_time, datetime.timedelta(1272, 3800))
+
+        self.assertEqual(issue.first_date_in_state('In Progress'), millis_to_datetime(1362960471944))
+
+        self.assertEqual(issue.cycle_time_start, millis_to_datetime(1362960471944))
+        self.assertEqual(issue.cycle_time_end, millis_to_datetime(1472861471944))
+
+        self.assertEqual(str(issue),
+                         '[BACKEND-671], (created): 1970-01-01 01:00:00.123000, '
+                         '(Open->In Progress): 2013-03-11 01:07:51.944000, '
+                         '(In Progress->Complete): 2016-09-03 02:11:11.944000, cycle time: 1272 days, 1:03:20')
 
     def test_cycle_time_from_issue_changes(self):
         changes = init_changes()
@@ -111,6 +121,9 @@ class TestCalculateCycleTime(unittest.TestCase):
         self.assertEqual(datetime.timedelta(1272, 3800), complete_state_datetime - open_state_datetime)
 
     def te_st_live_cylce_time_for_issues_with_cache(self):
+        username = os.environ['username']
+        password = os.environ['password']
+
         from tempfile import mkdtemp
         cachedir = mkdtemp()
         cache = pyfscache.FSCache(cachedir, days=14)
