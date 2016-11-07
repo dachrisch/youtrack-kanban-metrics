@@ -72,24 +72,54 @@ def states(issues, chart_title, chart_file):
     for issue in issues:
         for state_change in issue.state_changes:
             counter[state_change.from_state] = counter[state_change.from_state] + state_change.duration
+    labels = []
+    values = []
+    index = numpy.arange(len(counter.keys()))
     for item in sorted(counter.iteritems(), key=lambda x: x[1]):
         print 'days in [%s] state: %s' % (item[0], item[1].days)
+        labels.append(item[0])
+        values.append(item[1].days)
 
     import matplotlib.pyplot as plt
-    bar_distance = 2
-    index = numpy.arange(len(counter.keys()))
-    plt.bar(index * bar_distance + 0.5, [cycle_time.days for cycle_time in counter.values()], 1)
-    plt.xticks(index * bar_distance + 1, counter.keys(), rotation=-15)
-    plt.gca().yaxis.grid(True)
+    bar_distance = 4
+    fig, ax = plt.subplots()
+    fig.subplots_adjust(bottom=.4)
+    bars = ax.bar(index * bar_distance + 0.5, values, 1, color='lightyellow')
+    autolabel(bars, labels, ax)
+    ax.set_xticks(index * bar_distance + 1)
+    ax.set_xticklabels(labels, rotation=90)
 
-    plt.xlabel('Workflow State')
-    plt.ylabel('Cumulated Cycle Times [days]')
-    plt.title('Workflow Step chart for  %s' % chart_title)
+    ax.set_xlabel('Workflow State')
+    ax.set_ylabel('Cumulated Cycle Times [days]')
+    ax.set_title('Workflow Step chart for  %s' % chart_title)
 
     if chart_file:
         plt.savefig('states_%s' % chart_file)
     else:
         plt.show()
+
+
+def autolabel(rects, labels, ax):
+    # Get y-axis height to calculate label_names position from.
+    (y_bottom, y_top) = ax.get_ylim()
+    y_height = y_top - y_bottom
+
+    for rect in rects:
+        height = rect.get_height()
+        label = '%d' % (rect.get_height())
+
+        # Fraction of axis height taken up by this rectangle
+        p_height = (height / y_height)
+
+        # If we can fit the label_names above the column, do that;
+        # otherwise, put it inside the column.
+        if p_height > 0.95:
+            label_position = height - (y_height * 0.05)
+        else:
+            label_position = height + (y_height * 0.01)
+
+        ax.text(rect.get_x() + rect.get_width() / 2., label_position,
+                label, color='lightgreen', ha='center', va='bottom')
 
 
 def percentile(issues, chart_title, chart_file):
