@@ -105,8 +105,6 @@ class CycleTimeAwareIssue(object):
             ('In Progress', 'Review', 'Code Review', 'Analysis', 'Development',
              'Verification', 'Testing | Verification', 'Ready for Code Review'))
 
-        self.resolved_date = millis_to_datetime(int(
-            filter(is_resolved_field, filter(has_resolved_changes, self.changes)[0].fields)[0].new_value[0]))
         self._log.info(str(self))
 
     def __getstate__(self):
@@ -135,7 +133,7 @@ class CycleTimeAwareIssue(object):
                               datetime.timedelta())
         forward_sorted_changes = sorted(self.state_changes, key=attrgetter('updated'))
         if not forward_sorted_changes:
-            self.cycle_time_start = self.cycle_time_end = self.created_time
+            self.resolved_date = self.cycle_time_start = self.cycle_time_end = self.created_time
             self.cycle_time_start_source_transition = self.cycle_time_end_source_transition = None
             return
 
@@ -155,6 +153,11 @@ class CycleTimeAwareIssue(object):
                 self.cycle_time_end = state_change.updated
                 self.cycle_time_end_source_transition = state_change.transition
                 break
+        self.resolved_date = self.cycle_time_end
+        for resolved_changes in filter(has_resolved_changes, self.changes):
+            for resolved_field in filter(is_resolved_field, resolved_changes.fields):
+                if resolved_field.new_value:
+                    self.resolved_date = millis_to_datetime(int(resolved_field.new_value[0]))
 
     def time_in_state(self, state):
         return sum(
