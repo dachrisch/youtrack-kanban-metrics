@@ -1,9 +1,11 @@
+import datetime
 import os
 
 import flask
 import numpy
 from bokeh.embed import components
-from bokeh.io import hplot
+from bokeh.io import vplot
+from bokeh.layouts import column
 from bokeh.plotting import figure
 from bokeh.resources import INLINE
 from bokeh.util.string import encode_utf8
@@ -14,6 +16,7 @@ from flask import url_for, request
 from flask_login import LoginManager
 from werkzeug.utils import redirect
 
+from main import to_date_fetch_query
 from youtrack.kanban_metrics import KanbanAwareYouTrackConnection
 
 app = flask.Flask(__name__)
@@ -27,12 +30,12 @@ project_keys = {
 youtrack = {}
 
 
-def control_chart(issues, projects, chart_log=False):
+def control_chart(issues, chart_log=False):
     x_resolved_date = [issue.resolved_date for issue in issues]
     y_cycletimes = [issue.cycle_time.days for issue in issues]
 
     figure_arguments = {'x_axis_label': 'Resolved Date', 'y_axis_label': 'Cycle Time [days]',
-                        'x_axis_type': "datetime", 'title': 'Control Chart %s' % str(projects)}
+                        'x_axis_type': "datetime", 'title': 'Control Chart'}
 
     if chart_log:
         control_chart_figure = figure(y_axis_type='log', **figure_arguments)
@@ -43,11 +46,11 @@ def control_chart(issues, projects, chart_log=False):
     return control_chart_figure
 
 
-def histogram_chart(issues, projects, chart_log=False):
+def histogram_chart(issues, chart_log=False):
     cycletimes = [issue.cycle_time.days for issue in issues]
 
     figure_arguments = {'x_axis_label': 'Cycle Time [days]', 'y_axis_label': 'Frequency',
-                        'title': 'Cycle Time Histogram for %s' % str(projects)}
+                        'title': 'Cycle Time Histogram'}
 
     if chart_log:
         histogram_figure = figure(x_axis_type='log', **figure_arguments)
@@ -61,14 +64,14 @@ def histogram_chart(issues, projects, chart_log=False):
     return histogram_figure
 
 
-def percentile_chart(issues, projects, chart_log=False):
+def percentile_chart(issues):
     cycletimes = [issue.cycle_time.days for issue in issues]
     x_axis = (10, 25, 50, 75, 80, 90, 95, 99)
     y_axis = [numpy.percentile(cycletimes, quantile) for quantile in x_axis]
 
-    histogram_figure = figure(x_axis_label= 'Percentile', y_axis_label= 'Cycle Time [days]',title='Percentile chart for %s' % str(projects))
+    histogram_figure = figure(x_axis_label='Percentile', y_axis_label='Cycle Time [days]', title='Percentile chart')
 
-    histogram_figure.line(x_axis,y_axis)
+    histogram_figure.line(x_axis, y_axis)
 
     return histogram_figure
 
@@ -103,32 +106,39 @@ def projects_metrics():
 
     # Get all the form arguments in the url with defaults
     projects = project_keys[getitem(args, 'project', 'mobile')]
-    _from = int(getitem(args, '_from', 0))
-    to = int(getitem(args, 'to', 10))
+    if 'history_to' in args:
+        now = datetime.datetime.strptime(args['history_to'], '%Y-%m-%d')
+    else:
+        now = datetime.datetime.now()
+    history_days = int(getitem(args, 'history_days', 30))
+    then = now - datetime.timedelta(days=history_days)
 
     issues = []
     for project in projects:
         issues.extend(youtrack['connection'].get_cycle_time_issues(project, 1000,
-                                                                   history_range=('2016-11-01', '2016-10-01')))
+                                                                   history_range=(
+                                                                       to_date_fetch_query(now),
+                                                                       to_date_fetch_query(then))))
 
-    control_plot = control_chart(issues, projects)
-    histogram_plot = histogram_chart(issues, projects)
-    percentile_plot = percentile_chart(issues, projects, True)
+        control_plot = control_chart(issues)
+        histogram_plot = histogram_chart(issues)
+        percentile_plot = percentile_chart(issues)
 
-    js_resources = INLINE.render_js()
-    css_resources = INLINE.render_css()
+        js_resources = INLINE.render_js()
+        css_resources = INLINE.render_css()
 
-    script, div = components(hplot(control_plot, histogram_plot, percentile_plot))
-    html = flask.render_template(
-        'single_project.html',
-        plot_script=script,
-        plot_div=div,
-        js_resources=js_resources,
-        css_resources=css_resources,
-        project=getitem(args, 'project', 'mobile'),
-        _from=_from,
-        to=to
-    )
+        script, div = components(column([control_plot, histogram_plot, percentile_plot]))
+        html = flask.render_template(
+            'single_project.html',
+            plot_script=script,
+            plot_div=div,
+            js_resources=js_resources,
+            css_resources=css_resources,
+            project=getitem(args, 'project', 'mobile'),
+            history_from=to_date_fetch_query(then),
+            history_to=to_date_fetch_query(now),
+            history_days=history_days
+        )
     return encode_utf8(html)
 
 

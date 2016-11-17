@@ -11,7 +11,6 @@
     {{ plot_script|indent(4)|safe }}
 
   </head>
-    <p> Configure Metrics: </p>
     <form name="metrics_settings" method='GET'>
         Project:
         <select name="project">
@@ -19,15 +18,13 @@
             <option value="semantic">Semantic</option>
             <option value="mobile">Mobile</option>
         </select>
-        <br>
         From:
-        <input type="text" name="_from" value="{{ _from }}">
-        <br>
-        To:
-        <input type="text" name="to" value="{{ to }}">
-        <br>
+        <input type="text" name="history_to" value="{{ history_to }}">
+        Days:
+        <input type="text" name="history_days" value="{{ history_days }}">
         <button type="submit">Submit</button>
     </form>
+    <h1>Kanban Metrics for {{ project }} - {{ history_from }} - {{ history_to }}</h1>
     {{ plot_div|indent(4)|safe }}
 
 {% endblock %}
