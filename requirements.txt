@@ -2,4 +2,6 @@ pyfscache
 statistics
 httplib2
 matplotlib
-
+bokeh
+flask
+flask-login
