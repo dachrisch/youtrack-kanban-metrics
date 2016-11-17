@@ -100,11 +100,13 @@ class CycleTimeAwareIssue(object):
         self.created_time = millis_to_datetime(int(issue.created))
         self.history_provider = history_provider
         self.changes = self.history_provider.retrieve_changes(self)
-        # self._init_transition_stages()
         self._init_time_in_state()
         self._calculate_cycle_time(
             ('In Progress', 'Review', 'Code Review', 'Analysis', 'Development',
              'Verification', 'Testing | Verification', 'Ready for Code Review'))
+
+        self.resolved_date = millis_to_datetime(int(
+            filter(is_resolved_field, filter(has_resolved_changes, self.changes)[0].fields)[0].new_value[0]))
         self._log.info(str(self))
 
     def __getstate__(self):
@@ -134,7 +136,7 @@ class CycleTimeAwareIssue(object):
         forward_sorted_changes = sorted(self.state_changes, key=attrgetter('updated'))
         if not forward_sorted_changes:
             self.cycle_time_start = self.cycle_time_end = self.created_time
-            self.cycle_time_start_source_transition =  self.cycle_time_end_source_transition = None
+            self.cycle_time_start_source_transition = self.cycle_time_end_source_transition = None
             return
 
         self.cycle_time_start = forward_sorted_changes[0].updated
@@ -163,6 +165,14 @@ class CycleTimeAwareIssue(object):
         return sorted(filter(lambda s: s.to_state == state, self.state_changes), key=attrgetter('updated'))[0].updated
 
 
+def is_resolved_field(field):
+    return field.name == 'resolved'
+
+
+def has_resolved_changes(change):
+    return len(filter(is_resolved_field, change.fields)) > 0
+
+
 def is_state_field(field):
     return field.name == 'State'
 
@@ -181,16 +191,5 @@ def has_old_value(value, change):
 def has_new_value(value, change):
     for field in filter(is_state_field, change.fields):
         if field.new_value[0] in value:
-            return True
-    return False
-
-
-def is_resolved_field(field):
-    return field.name == u'resolved'
-
-
-def has_resolved_value(change):
-    for field in filter(is_resolved_field, change.fields):
-        if field:
             return True
     return False

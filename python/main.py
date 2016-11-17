@@ -150,7 +150,7 @@ def control_chart(issues, chart_title, chart_file):
     if args.chart_log:
         plt.yscale('log')
     axis = plt.subplot()
-    x_resolved_date = [issue.cycle_time_end.toordinal() for issue in issues]
+    x_resolved_date = [issue.resolved_date.toordinal() for issue in issues]
     y_cycletimes = [issue.cycle_time.days for issue in issues]
     plt.plot(x_resolved_date, y_cycletimes, 'ro')
 
@@ -200,8 +200,8 @@ def histogram(issues, chart_title, chart_file):
 
 def base(issues, now, then):
     timespan = (now - then).days
-    print 'oldest issue  : %s' % min(issues, key=attrgetter('cycle_time_end'))
-    print 'youngest issue: %s' % max(issues, key=attrgetter('cycle_time_end'))
+    print 'oldest issue  : %s' % min(issues, key=attrgetter('resolved_date'))
+    print 'youngest issue: %s' % max(issues, key=attrgetter('resolved_date'))
     cycletimes = [issue.cycle_time.days for issue in issues]
     print 'min issue     : %s' % min(issues, key=attrgetter('cycle_time.days'))
     print 'median issue  : %s' % sorted(issues, key=attrgetter('cycle_time.days'))[len(issues) // 2]

@@ -14,7 +14,7 @@ import pyfscache
 from youtrack import IssueChange, ChangeField, Issue
 from youtrack.connection import Connection
 from youtrack.kanban_metrics import YoutrackProvider, ChangesProvider, CycleTimeAwareIssue, has_state_changes, \
-    has_new_value, KanbanAwareYouTrackConnection, has_resolved_value, millis_to_datetime
+    has_new_value, KanbanAwareYouTrackConnection, millis_to_datetime
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
@@ -71,6 +71,13 @@ class TestCalculateCycleTime(unittest.TestCase):
 
         log_space = numpy.logspace(0, 2, 4)
         self.assertEqual({1, 4.6415888336127784, 21.544346900318832, 100}, set(log_space))
+
+    def test_resolved_date(self):
+        issue = Issue()
+        issue.created = '123'
+        issue.id = 'BACKEND-671'
+        issue = CycleTimeAwareIssue(issue, TestProvider())
+        self.assertEqual(issue.resolved_date, millis_to_datetime(1472861471941))
 
     def test_issue_in_state_time(self):
         issue = Issue()
