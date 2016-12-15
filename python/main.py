@@ -235,7 +235,7 @@ if __name__ == '__main__':
                         help='how many days to fetch (from now)')
     parser.add_argument('--history_from', dest='history_from', help='where to start fetching (instead of "now")')
     parser.add_argument('-l', '--chart_log', dest='chart_log', action='store_true', default=False,
-                        help='days before updating cache')
+                        help='create the chart using a log scale')
     parser.add_argument('--save_chart', dest='save_chart', action='store_true', default=None,
                         help='save chart to file instead of showing it')
 
