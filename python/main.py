@@ -8,7 +8,6 @@ from collections import Counter
 from operator import attrgetter
 
 import numpy
-import pyfscache
 
 from youtrack.kanban_metrics import KanbanAwareYouTrackConnection
 
@@ -25,12 +24,7 @@ def main(arguments):
     else:
         logging.basicConfig(stream=sys.stdout, level=logging.WARN)
 
-    if arguments.no_cache:
-        cache = None
-    else:
-        cache = pyfscache.FSCache(arguments.cache_dir, days=arguments.cache_age)
-
-    yt = KanbanAwareYouTrackConnection('https://tickets.i.gini.net', arguments.username, arguments.password, cache)
+    yt = KanbanAwareYouTrackConnection('https://tickets.i.gini.net', arguments.username, arguments.password)
     if arguments.history_from:
         now = datetime.datetime.strptime(arguments.history_from, '%Y-%m-%d')
     else:
@@ -237,8 +231,6 @@ if __name__ == '__main__':
                         action='count')
     parser.add_argument('--username', dest='username', required=True, help='username for login')
     parser.add_argument('--password', dest='password', required=True, help='password for login')
-    parser.add_argument('--cache_dir', dest='cache_dir', default='/tmp/', help='directory to cache results')
-    parser.add_argument('--cache_age', dest='cache_age', type=int, default=14, help='days before updating cache')
     parser.add_argument('-a', '--history_age', dest='history_age', default=90, type=int,
                         help='how many days to fetch (from now)')
     parser.add_argument('--history_from', dest='history_from', help='where to start fetching (instead of "now")')
@@ -247,8 +239,6 @@ if __name__ == '__main__':
     parser.add_argument('--save_chart', dest='save_chart', action='store_true', default=None,
                         help='save chart to file instead of showing it')
 
-    parser.add_argument('--no_cache', dest='no_cache', action='store_true', default=False,
-                        help="don't use the cache, fetch live data")
     parser.add_argument('chart', choices=('histogram', 'control', 'metrics', 'basic', 'percentile', 'states'),
                         help='metric to calculate')
 
